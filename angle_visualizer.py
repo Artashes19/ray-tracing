@@ -17,12 +17,16 @@ def visualize_angles(source, wall, edge_index, observer, freq):
     edge = wall[edge_index]
     
     # --- Physics Calculation ---
-    # We capture all three return values, but only use the angles for now.
-    _, phi_0_rad, phi_rad = utd_physics.calculate_utd_coefficient(
+    # We capture all four return values.
+    _, vis_phi_0_rad, phi_rad, face_angle_ref_rad = utd_physics.calculate_utd_coefficient(
         source, edge, observer, wall, freq
     )
-    phi_0_deg = np.degrees(phi_0_rad)
+    # For visualization, we use the angles as they are now returned:
+    # - vis_phi_0_rad is the smallest angle for the incident ray
+    # - phi_rad is the CCW angle from the 0-face for the diffracted ray
+    vis_phi_0_deg = np.degrees(vis_phi_0_rad)
     phi_deg = np.degrees(phi_rad)
+    face_angle_deg = np.degrees(face_angle_ref_rad)
     
     # --- Plotting ---
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -43,20 +47,21 @@ def visualize_angles(source, wall, edge_index, observer, freq):
     ax.plot([edge[0], observer[0]], [edge[1], observer[1]], 'g--', label='Diffracted Ray')
     
     # --- Angle Visualization ---
-    p1_wall, p2_wall = wall
-    face_vector = np.array(p2_wall) - np.array(p1_wall) if edge_index == 0 else np.array(p1_wall) - np.array(p2_wall)
-    face_angle_deg = np.degrees(np.arctan2(face_vector[1], face_vector[0]))
+    # We no longer calculate this here; we use the one from the physics module.
+    # p1_wall, p2_wall = wall
+    # face_vector = np.array(p2_wall) - np.array(p1_wall) if edge_index == 0 else np.array(p1_wall) - np.array(p2_wall)
+    # face_angle_deg = np.degrees(np.arctan2(face_vector[1], face_vector[0]))
 
-    # Reference line for angles (the wall face)
+    # Reference line for angles (the 0-face)
     ref_line_end = (edge[0] + 50 * np.cos(np.radians(face_angle_deg)), edge[1] + 50 * np.sin(np.radians(face_angle_deg)))
-    ax.plot([edge[0], ref_line_end[0]], [edge[1], ref_line_end[1]], 'k:', alpha=0.5, label='Wall Face Reference')
+    ax.plot([edge[0], ref_line_end[0]], [edge[1], ref_line_end[1]], 'k:', alpha=0.5, label='0-Face Reference')
     
-    # Draw incident angle arc
-    arc_inc = Arc(edge, 100, 100, angle=face_angle_deg, theta1=0, theta2=phi_0_deg,
-                  color='blue', linewidth=2, linestyle='--', label=f'Incident Angle ($\\phi_0$ = {phi_0_deg:.1f}°)')
+    # Draw incident angle arc - using the smallest angle
+    arc_inc = Arc(edge, 100, 100, angle=face_angle_deg, theta1=0, theta2=vis_phi_0_deg,
+                  color='blue', linewidth=2, linestyle='--', label=f'Incident Angle ($\\phi_0$ = {vis_phi_0_deg:.1f}°)')
     ax.add_patch(arc_inc)
     
-    # Draw diffraction angle arc
+    # Draw diffraction angle arc - using the formula angle
     arc_diff = Arc(edge, 80, 80, angle=face_angle_deg, theta1=0, theta2=phi_deg,
                    color='purple', linewidth=2, linestyle='--', label=f'Diffraction Angle ($\\phi$ = {phi_deg:.1f}°)')
     ax.add_patch(arc_diff)
@@ -75,12 +80,13 @@ def visualize_angles(source, wall, edge_index, observer, freq):
 
 if __name__ == '__main__':
     # --- Define a Test Scenario ---
-    source_pos = (50, 100)
-    wall_geom = ((100, 120), (50, 120))  # A vertical wall
-    diffracting_edge_idx = 1  # Use the bottom point of the wall as the edge
+    # TEST CASE 3
+    source_pos = (100, 100)
+    wall_geom = ((100, 120), (50, 120))
+    diffracting_edge_idx = 0
     observer_pos = (100, 180)
     frequency = 900e6  # 900 MHz
     
-    print("--- Generating Static Angle Visualization ---")
+    print("--- Running Test Case 3: Complex Geometry ---")
     visualize_angles(source_pos, wall_geom, diffracting_edge_idx, observer_pos, frequency)
     print("--- Plot saved to diffraction_plot.png ---") 

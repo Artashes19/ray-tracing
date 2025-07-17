@@ -1,74 +1,81 @@
 import numpy as np
 from scipy.constants import c as SPEED_OF_LIGHT
 
+# -------------------------------------------------------------
+# Helper utilities
+# -------------------------------------------------------------
+TWOPI = 2 * np.pi
+
+
+def _norm(a):
+    """Normalize angle to [0, 2π)."""
+    return a % TWOPI
+
+
+def _angle_between(a, b):
+    """Smallest absolute angle between two directions in [0, π]."""
+    return abs((_norm(a - b + np.pi)) - np.pi)
+
+
+# -------------------------------------------------------------
+# Main routine
+# -------------------------------------------------------------
+
 def calculate_utd_coefficient(source, edge, observer, wall_points, frequency):
+    """Return (D_GTD_complex, phi0_vis, phi_vis, face_ref_angle).
+
+    * phi0_vis  – smallest angle between 0-face and incident ray (deg)
+    * phi_vis   – clockwise angle from 0-face to diffracted ray (deg)
+    * face_ref_angle returned in radians for diagnostics
     """
-    Calculates the Uniform Theory of Diffraction (UTD) coefficient.
 
-    This function will compute the coefficient D based on the geometry of the
-    source, edge, and observer, and the frequency of the signal.
-
-    Args:
-        source (tuple): (x, y) coordinates of the transmitter.
-        edge (tuple): (x, y) coordinates of the diffracting edge.
-        observer (tuple): (x, y) coordinates of the observation point.
-        wall_points (tuple): A tuple of two (x, y) tuples defining the wall.
-        frequency (float): The frequency of the signal in Hz.
-
-    Returns:
-        complex: The complex UTD diffraction coefficient.
-    """
-    # --- Placeholder for implementation ---
-    # 1. Calculate wavenumber k
-    wavelength = SPEED_OF_LIGHT / frequency
-    k = 2 * np.pi / wavelength
-    print(f"Wavelength (λ): {wavelength:.4f} m, Wavenumber (k): {k:.4f}")
-
-    # 2. Establish local coordinate system at the edge
-    # The reference plane is the face of the wall.
-    # We need to find the other point of the wall that is not the edge.
+    # --- basic geometry vectors ---
     p1, p2 = wall_points
-    face_vector = np.array(p2) - np.array(p1) if np.allclose(edge, p1) else np.array(p1) - np.array(p2)
-    face_angle = np.arctan2(face_vector[1], face_vector[0])
-    print(f"Wall face angle: {np.degrees(face_angle):.2f}°")
+    wall_vec = np.array(p2) - np.array(p1)
+    if np.allclose(edge, p2):
+        wall_vec = -wall_vec  # ensure vector points away from edge into the wall
 
-    # 3. Calculate angles phi and phi_0 relative to the wall face
-    # Vector from edge to source (for incident ray)
-    incident_vector = np.array(source) - np.array(edge)
-    phi_0 = np.arctan2(incident_vector[1], incident_vector[0]) - face_angle
-    # Normalize to [0, 2*pi]
-    phi_0 = phi_0 % (2 * np.pi)
-    print(f"Incident angle (φ₀): {np.degrees(phi_0):.2f}°")
-    
-    # Vector from edge to observer (for diffracted ray)
-    diffracted_vector = np.array(observer) - np.array(edge)
-    phi = np.arctan2(diffracted_vector[1], diffracted_vector[0]) - face_angle
-    # Normalize to [0, 2*pi]
-    phi = phi % (2 * np.pi)
-    print(f"Diffraction angle (φ): {np.degrees(phi):.2f}°")
+    # 0-face is *always* the physical wall direction (edge → interior of wall)
+    face_ref = _norm(np.arctan2(wall_vec[1], wall_vec[0]))
 
+    # Opposite face (not used for reference but may be useful for debug)
+    # face_opposite = _norm(face_ref + np.pi)
 
-    # ... The rest of the UTD steps will go here ...
-    
-    print("UTD calculation partially implemented.")
-    # Return a default complex value for D, and the calculated angles in radians
-    return 1.0 + 0.0j, phi_0, phi
+    # Incident and diffraction directions (edge ➜ source / observer)
+    inc_dir = _norm(np.arctan2(source[1] - edge[1], source[0] - edge[0]))
+    diff_dir = _norm(np.arctan2(observer[1] - edge[1], observer[0] - edge[0]))
+
+    # ---------------------------------------------------------
+    # Compute visual / return angles
+    # ---------------------------------------------------------
+    phi0_small = _angle_between(inc_dir, face_ref)         # always ≤ π
+    phi_cw = _norm(face_ref - diff_dir)                    # clockwise
+
+    # radians to degrees for printing / visualiser
+    phi0_deg = np.degrees(phi0_small)
+    phi_deg = np.degrees(phi_cw)
+
+    # ---------------------------------------------------------
+    # GTD diffraction coefficient (half-plane)
+    # ---------------------------------------------------------
+    wavelength = SPEED_OF_LIGHT / frequency
+    k = TWOPI / wavelength
+    n = 1  # half-plane
+
+    # Formula: 1/(2√(2πk)) [ -sec((φ-φ0)/2) + sec((φ+φ0)/2) ]
+    sec_minus = 1 / np.cos((phi_cw - phi0_small) / 2)
+    sec_plus = 1 / np.cos((phi_cw + phi0_small) / 2)
+    D_gtd = (-sec_minus + sec_plus) / (2 * np.sqrt(2 * np.pi * k))
+
+    return complex(D_gtd), np.radians(phi0_deg), np.radians(phi_deg), face_ref
 
 if __name__ == '__main__':
-    # --- Example usage for testing ---
-    # We will add test cases here as we build the function.
-    print("--- Running Test Case ---")
-    
-    # Define a simple scenario: Horizontal wall
+    print("--- Running Basic Test Case ---")
     source_pos = (10, 20)
     wall = ((30, 10), (70, 10))
     diffracting_edge = wall[0]
-    observer_pos = (50, -10) # In the shadow region
-    freq = 900e6 # 900 MHz
+    observer_pos = (50, -10)
+    freq = 900e6
     
-    # The function now returns 3 values, so we capture them for testing.
-    coeff, phi_0_rad, phi_rad = calculate_utd_coefficient(source_pos, diffracting_edge, observer_pos, wall, freq)
-    print(f"Returned values: D={coeff}, φ₀={np.degrees(phi_0_rad):.2f}°, φ={np.degrees(phi_rad):.2f}°")
-    
-    print("\n--- Test Case Complete ---")
-    print("utd_physics.py - Ready for next steps.") 
+    calculate_utd_coefficient(source_pos, diffracting_edge, observer_pos, wall, freq)
+    print("\n--- Test Case Complete ---") 
