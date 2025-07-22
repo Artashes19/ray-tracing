@@ -35,25 +35,18 @@ def calculate_utd_coefficient(source, edge, observer, wall_points, frequency):
     if np.allclose(edge, p2):
         wall_vec = -wall_vec  # ensure vector points away from edge into the wall
 
-    # 0-face is *always* the physical wall direction (edge → interior of wall)
-    face_ref = _norm(np.arctan2(wall_vec[1], wall_vec[0]))
+    wall_angle = _norm(np.arctan2(wall_vec[1], wall_vec[0]))
 
-    # Opposite face (not used for reference but may be useful for debug)
-    # face_opposite = _norm(face_ref + np.pi)
-
-    # Incident and diffraction directions (edge ➜ source / observer)
+    # Directions for incident (edge->source) and diffracted (edge->observer)
     inc_dir = _norm(np.arctan2(source[1] - edge[1], source[0] - edge[0]))
     diff_dir = _norm(np.arctan2(observer[1] - edge[1], observer[0] - edge[0]))
 
-    # ---------------------------------------------------------
-    # Compute visual / return angles
-    # ---------------------------------------------------------
-    phi0_small = _angle_between(inc_dir, face_ref)         # always ≤ π
-    phi_cw = _norm(face_ref - diff_dir)                    # clockwise
+    # Clockwise angles from wall to rays
+    phi0 = _norm(wall_angle - inc_dir)  # incident
+    phi  = _norm(wall_angle - diff_dir) # diffracted
 
-    # radians to degrees for printing / visualiser
-    phi0_deg = np.degrees(phi0_small)
-    phi_deg = np.degrees(phi_cw)
+    phi0_deg = np.degrees(phi0)
+    phi_deg  = np.degrees(phi)
 
     # ---------------------------------------------------------
     # GTD diffraction coefficient (half-plane)
@@ -63,19 +56,19 @@ def calculate_utd_coefficient(source, edge, observer, wall_points, frequency):
     n = 1  # half-plane
 
     # Formula: 1/(2√(2πk)) [ -sec((φ-φ0)/2) + sec((φ+φ0)/2) ]
-    sec_minus = 1 / np.cos((phi_cw - phi0_small) / 2)
-    sec_plus = 1 / np.cos((phi_cw + phi0_small) / 2)
+    sec_minus = 1 / np.cos((phi - phi0) / 2)
+    sec_plus  = 1 / np.cos((phi + phi0) / 2)
     D_gtd = (-sec_minus + sec_plus) / (2 * np.sqrt(2 * np.pi * k))
 
-    return complex(D_gtd), np.radians(phi0_deg), np.radians(phi_deg), face_ref
+    return complex(D_gtd), np.radians(phi0_deg), np.radians(phi_deg), wall_angle
 
 if __name__ == '__main__':
     print("--- Running Basic Test Case ---")
-    source_pos = (10, 20)
-    wall = ((30, 10), (70, 10))
-    diffracting_edge = wall[0]
-    observer_pos = (50, -10)
+    source_pos = (120, 100)
+    wall_geom = ((100, 120), (50, 120))
+    diffracting_edge = wall_geom[0]
+    observer_pos = (80, 180)
     freq = 900e6
     
-    calculate_utd_coefficient(source_pos, diffracting_edge, observer_pos, wall, freq)
+    calculate_utd_coefficient(source_pos, diffracting_edge, observer_pos, wall_geom, freq)
     print("\n--- Test Case Complete ---") 
